@@ -15,8 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     MachineUtils
-                     , NatGeo
+  exposed-modules:     NatGeo
                      , Bing
   build-depends:       base >= 4.7 && < 5
                      , classy-prelude
@@ -27,6 +26,7 @@ library
                      , http-conduit
                      , ansi-terminal
                      , http-client-tls
+                     , machinecell-utils
                      , machinecell
                      , hxt
                      , hxt-http
@@ -48,6 +48,7 @@ executable bing-wallpapers-exe
                      , filepath
                      , process
                      , machinecell
+                     , machinecell-utils
   default-language:    Haskell2010
 
 test-suite bing-wallpapers-test

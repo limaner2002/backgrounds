@@ -60,6 +60,8 @@ main = do
                              >>> inputCommand
                              >>> dispatch
                              >>> machine (parseUrlThrow' mgr)
+                             >>> makeRequest
+                             >>> sourceHttp_
                              >>> downloadHttp "/tmp/bg.jpg"
                              >>> tee
                              >>> machine (const $ lift restartDock)
