@@ -17,6 +17,10 @@ import qualified Bing
 import qualified NatGeo
 import qualified IfaceLift
 import Network.HTTP.Simple
+import Options.Applicative hiding ((<>))
+import qualified Options.Applicative as OA
+import Options.Applicative.Types
+import HBORandomMovie
 
 data BackgroundSource
   = Bing
@@ -63,23 +67,64 @@ parseUrlThrow' mgr url = do
   req <- setRequestHeaders ifaceRequestHeaders <$> parseUrlThrow url
   return (req, mgr)
 
-main :: IO ()
-main = do
+wallpaper :: BackgroundSource -> IO ()
+wallpaper source = do
   mgr <- newManager tlsManagerSettings
-  runRMachine_ (machine (const instructions)
-           >>> inputCommand'
-           >>> dispatch
+  runRMachine_ (-- machine (const instructions)
+           -- >>> inputCommand'
+           -- >>> dispatch
+               dispatch
            >>> machine (parseUrlThrow' mgr)
            >>> makeRequest
            >>> sourceHttp_
            >>> downloadHttp "/tmp/bg.jpg"
            >>> tee
            >>> restartDock
-               ) [()]
+               ) [source]
 
 ifaceRequestHeaders = [ ("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36")
                       , ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                       ]
+
+wallpaperParser :: Parser (IO ())
+wallpaperParser = wallpaper <$> (
+  flag' Bing
+    (  long "bing"
+    <> short 'b'
+    <> help "Download from Bing's picture of the day."
+    )
+  <|> flag' NatGeo
+    ( long "natgeo"
+      <> short 'n'
+      <> help "Download from National Geographic's picture of the day."
+    )
+  <|> flag' Iface
+    ( long "interfacelift"
+      <> short 'i'
+      <> help "Download a random background from InterfaceLift."
+    )
+  )
+
+wallpaperInfo :: ParserInfo (IO ())
+wallpaperInfo = info (helper <*> wallpaperParser)
+  ( fullDesc
+  <> progDesc "Download an image to use as a desktop background from one of the supported sources."
+  )
+
+parseCommands :: Parser (IO ())
+parseCommands = subparser
+  ( command "backgrounds" wallpaperInfo
+  <> command "random-movie" movieInfo
+  )
+
+commandsInfo :: ParserInfo (IO ())
+commandsInfo = info (helper <*> parseCommands)
+  ( fullDesc
+  <> progDesc "This is a collection of various tools that I use at home for random things."
+  )
+
+main :: IO ()
+main = join $ execParser commandsInfo
 
   -- print urls
   -- reqs <- mapM parseUrlThrow urls

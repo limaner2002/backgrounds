@@ -10,7 +10,7 @@ import Text.XML.HXT.Core
 import Text.XML.HXT.HTTP
 import Control.Arrow.Machine
 
-baseUrl = "http://www.nationalgeographic.com/photography/photo-of-the-day/"
+baseUrl = "https://www.nationalgeographic.com/photography/photo-of-the-day/"
 
 getImageUrl :: MonadIO m => ProcessA (Kleisli m) (Event ()) (Event String)
 getImageUrl = constructT kleisli0 go
