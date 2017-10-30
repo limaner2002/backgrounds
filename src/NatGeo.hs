@@ -1,25 +1,69 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module NatGeo where
 
 import ClassyPrelude
+import Control.Lens
+import Text.Taggy.Lens
+import Servant
+import Servant.Client
+import Network.HTTP.Media ((//))
+import qualified Network.HTTP.Client as C
+import Network.HTTP.Client.TLS
 
-import Text.XML.HXT.Core
-import Text.XML.HXT.HTTP
-import Control.Arrow.Machine
+data Html
 
-baseUrl = "https://www.nationalgeographic.com/photography/photo-of-the-day/"
+instance MimeUnrender Html Node where
+  mimeUnrender _ bs = case bs ^? to decodeUtf8 . html of
+    Nothing -> Left "Could not decode the page!"
+    Just node -> Right node
 
-getImageUrl :: MonadIO m => ProcessA (Kleisli m) (Event ()) (Event String)
-getImageUrl = constructT kleisli0 go
-  where
-    go = do
-      urlBases <- lift . liftIO $ runX $ readDocument [withValidate no, withParseHTML yes, withWarnings no, withHTTP mempty] baseUrl //> hasAttrValue "property" (=="og:image") >>> getAttrValue "content"
-      loop urlBases
-    loop [] = return ()
-    loop (x:xs) = do
-      yield x
-      loop xs
+instance Accept Html where
+  contentType _ = "text" // "html"
 
+data JPG
+
+instance Accept JPG where
+  contentType _ = "image" // "jpeg"
+
+instance MimeUnrender JPG ByteString where
+  mimeUnrender _ = Right . toStrict
+
+type PhotoBase = "photography" :> "photo-of-the-day" :> Get '[Html] Node
+type PhotoUrl = "u" :> Capture "hashId" Text :> Get '[JPG] ByteString
+
+photoBase :: ClientM Node
+photoBase = client (Proxy :: Proxy PhotoBase)
+
+photoUrl :: Text -> ClientM ByteString
+photoUrl = client (Proxy :: Proxy PhotoUrl)
+
+getUrl :: (Applicative f, Contravariant f, HasElement a) =>
+     (Text -> f Text) -> a -> f a
+getUrl = allAttributed (folded . only "og:image") . Text.Taggy.Lens.attrs . at "content" . traverse
+
+photoOfTheDayClientEnv = do
+  mgr <- C.newManager tlsManagerSettings
+  return $ ClientEnv mgr (BaseUrl Http "nationalgeographic.com" 80 "")
+
+yourshotClient = do
+  mgr <- C.newManager tlsManagerSettings
+  return $ ClientEnv mgr (BaseUrl Https "yourshot.nationalgeographic.com" 443 "")
+
+main :: IO ()
+main = do
+  env <- photoOfTheDayClientEnv
+  node <- runClientM photoBase env
+  let mHashId = node ^? _Right . getUrl . to (reverse . splitElem '/') . dropping 1 traverse
+  case mHashId of
+    Nothing -> error "Could not find the original image URL!"
+    Just hashId -> do
+      env <- yourshotClient
+      eBS <- runClientM (photoUrl hashId) env
+      case eBS of
+        Left err -> print err
+        Right bs -> writeFile "/tmp/bgTest.jpg" bs

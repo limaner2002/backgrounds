@@ -31,6 +31,9 @@ library
                      , machinecell
                      , hxt
                      , hxt-http
+                     , lens
+                     , taggy-lens
+                     , taggy
   default-language:    Haskell2010
 
 executable random-utils
