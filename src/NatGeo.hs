@@ -54,8 +54,8 @@ yourshotClient = do
   mgr <- C.newManager tlsManagerSettings
   return $ ClientEnv mgr (BaseUrl Https "yourshot.nationalgeographic.com" 443 "")
 
-main :: IO ()
-main = do
+download :: FilePath -> IO ()
+download destFp = do
   env <- photoOfTheDayClientEnv
   node <- runClientM photoBase env
   let mHashId = node ^? _Right . getUrl . to (reverse . splitElem '/') . dropping 1 traverse
@@ -66,4 +66,4 @@ main = do
       eBS <- runClientM (photoUrl hashId) env
       case eBS of
         Left err -> print err
-        Right bs -> writeFile "/tmp/bgTest.jpg" bs
+        Right bs -> writeFile destFp bs
