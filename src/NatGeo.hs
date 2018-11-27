@@ -14,6 +14,8 @@ import Servant.Client
 import Network.HTTP.Media ((//))
 import qualified Network.HTTP.Client as C
 import Network.HTTP.Client.TLS
+import Data.Aeson
+import Data.Aeson.Lens
 
 data Html
 
@@ -34,36 +36,72 @@ instance MimeUnrender JPG ByteString where
   mimeUnrender _ = Right . toStrict
 
 type PhotoBase = "photography" :> "photo-of-the-day" :> Get '[Html] Node
-type PhotoUrl = "u" :> Capture "hashId" Text :> Get '[JPG] ByteString
+type PhotoBaseJSON = "photography" :> "photo-of-the-day" :> "_jcr_content" :> ".gallery.json" :> Get '[JSON] Value
+type PhotoUrl = "u" :> Capture "hashId" ImageHashId :> Get '[JPG] ByteString
+
+newtype ImageHashId = ImageHashId Text
+  deriving Show
+
+instance ToHttpApiData ImageHashId where
+  toUrlPiece (ImageHashId txt) = txt
 
 photoBase :: ClientM Node
 photoBase = client (Proxy :: Proxy PhotoBase)
 
-photoUrl :: Text -> ClientM ByteString
+photoBaseJSON :: ClientM Value
+photoBaseJSON = client (Proxy :: Proxy PhotoBaseJSON)
+
+photoUrl :: ImageHashId -> ClientM ByteString
 photoUrl = client (Proxy :: Proxy PhotoUrl)
 
 getUrl :: (Applicative f, Contravariant f, HasElement a) =>
      (Text -> f Text) -> a -> f a
-getUrl = allAttributed (folded . only "og:image") . Text.Taggy.Lens.attrs . at "content" . traverse
+getUrl = allAttributed (ix "property" . only "og:image") . Text.Taggy.Lens.attrs . at "content" . traverse
 
+photoOfTheDayClientEnv :: IO ClientEnv
 photoOfTheDayClientEnv = do
   mgr <- C.newManager tlsManagerSettings
-  return $ ClientEnv mgr (BaseUrl Http "nationalgeographic.com" 80 "")
+  return $ ClientEnv mgr (BaseUrl Https "www.nationalgeographic.com" 443 "") Nothing
 
+yourshotClient :: IO ClientEnv
 yourshotClient = do
   mgr <- C.newManager tlsManagerSettings
-  return $ ClientEnv mgr (BaseUrl Https "yourshot.nationalgeographic.com" 443 "")
+  return $ ClientEnv mgr (BaseUrl Https "yourshot.nationalgeographic.com" 443 "") Nothing
 
 download :: FilePath -> IO ()
 download destFp = do
   env <- photoOfTheDayClientEnv
-  node <- runClientM photoBase env
-  let mHashId = node ^? _Right . getUrl . to (reverse . splitElem '/') . dropping 1 traverse
-  case mHashId of
-    Nothing -> error "Could not find the original image URL!"
-    Just hashId -> do
-      env <- yourshotClient
-      eBS <- runClientM (photoUrl hashId) env
-      case eBS of
-        Left err -> print err
-        Right bs -> writeFile destFp bs
+  eResponse <- runClientM photoBaseJSON env
+  case eResponse of
+    Left err -> print err
+    Right response -> case response ^? to getLargestImage . traverse of
+      Nothing -> putStrLn "Could not find the url on the page!"
+      Just (size, imgUrl) -> do
+        putStrLn $ "Found an image of size " <> tshow size <> " at " <> imgUrl
+        case imgUrl ^? getImageHashId of
+          Nothing -> putStrLn "Could not get the Image Hash from the image url!"
+          Just hash -> do
+            putStrLn "Downloading the image now!"
+            yourshotEnv <- yourshotClient
+            resp <- runClientM (photoUrl hash) yourshotEnv
+            case resp of
+              Left err -> print err
+              Right bs -> writeFile destFp bs
+
+itemsF :: Fold Value Value
+itemsF = key "items" . plate
+
+sizesF :: Fold Value (Int, Text)
+sizesF = key "sizes" . _Object . to mapToList . traverse . runFold ((,) <$> Fold (_1 . to readMay . traverse) <*> Fold (_2 . _String))
+
+largestSize :: [(Int, Text)] -> Maybe (Int, Text)
+largestSize = maximumByMay (\x y -> compare (fst x) (fst y))
+
+getLargestImage :: Value -> Maybe (Int, Text)
+getLargestImage v = do
+  item <- v ^? itemsF
+  let sizes = item ^.. sizesF
+  largestSize sizes
+
+getImageHashId :: Fold Text ImageHashId
+getImageHashId = to (reverse . splitElem '/') . dropping 1 traverse . to ImageHashId

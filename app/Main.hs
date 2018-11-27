@@ -7,20 +7,20 @@ module Main where
 
 import ClassyPrelude
 
-import Control.Arrow
-import Control.Arrow.Machine
-import Network.HTTP.Conduit
+-- import Control.Arrow
+-- import Control.Arrow.Machine
+-- import Network.HTTP.Conduit
 import Control.Monad.Trans.Resource
 import System.Process
-import MachineUtils
+-- import MachineUtils
 import qualified Bing
 import qualified NatGeo
 import qualified IfaceLift
-import Network.HTTP.Simple
+-- import Network.HTTP.Simple
 import Options.Applicative hiding ((<>))
 import qualified Options.Applicative as OA
 import Options.Applicative.Types
-import HBORandomMovie
+-- import HBORandomMovie
 
 data BackgroundSource
   = Bing
@@ -35,25 +35,25 @@ osaScript fileName = unlines [ "tell application \"System Events\""
                              , "end tell"
                              ]
 
-restartDock :: MonadIO m => ProcessA (Kleisli m) (Event a) (Event ())
-restartDock = onEnd
-  >>> machine (const $ liftIO $ putStrLn "restartDock onEnd")
-  >>> machine (const $ liftIO restartDock_)
-  >>> machine (liftIO . waitForProcess)
-  >>> machine print
+-- restartDock :: MonadIO m => ProcessA (Kleisli m) (Event a) (Event ())
+-- restartDock = onEnd
+--   >>> machine (const $ liftIO $ putStrLn "restartDock onEnd")
+--   >>> machine (const $ liftIO restartDock_)
+--   >>> machine (liftIO . waitForProcess)
+--   >>> machine print
 
-restartDock_ :: IO ProcessHandle
-restartDock_ = runCommand $ "killall Dock"
+-- restartDock_ :: IO ProcessHandle
+-- restartDock_ = runCommand $ "killall Dock"
 
-dispatch :: MonadResource m => ProcessA (Kleisli m) (Event BackgroundSource) (Event String)
-dispatch = proc input -> do
-  cmdEvt <- hold Wait -< input
+-- dispatch :: MonadResource m => ProcessA (Kleisli m) (Event BackgroundSource) (Event String)
+-- dispatch = proc input -> do
+--   cmdEvt <- hold Wait -< input
 
-  case cmdEvt of
-    Bing -> Bing.getImageUrl -< () <$ input
-    NatGeo -> NatGeo.getImageUrl -< () <$ input
-    Iface -> IfaceLift.getImageUrl -< () <$ input
-    Wait -> returnA -< noEvent
+--   case cmdEvt of
+--     Bing -> Bing.getImageUrl -< () <$ input
+--     -- NatGeo -> NatGeo.getImageUrl -< () <$ input
+--     Iface -> IfaceLift.getImageUrl -< () <$ input
+--     Wait -> returnA -< noEvent
 
 instructions :: MonadIO m => m ()
 instructions = do
@@ -62,32 +62,35 @@ instructions = do
   putStrLn "Iface: download from InterfaceLift."
   putStrLn "end: exits"
 
-parseUrlThrow' :: MonadThrow m => Manager -> String -> m (Request, Manager)
-parseUrlThrow' mgr url = do
-  req <- setRequestHeaders ifaceRequestHeaders <$> parseUrlThrow url
-  return (req, mgr)
+-- parseUrlThrow' :: MonadThrow m => Manager -> String -> m (Request, Manager)
+-- parseUrlThrow' mgr url = do
+--   req <- setRequestHeaders ifaceRequestHeaders <$> parseUrlThrow url
+--   return (req, mgr)
 
-wallpaper :: BackgroundSource -> IO ()
-wallpaper source = do
-  mgr <- newManager tlsManagerSettings
-  runRMachine_ (-- machine (const instructions)
-           -- >>> inputCommand'
-           -- >>> dispatch
-               dispatch
-           >>> machine (parseUrlThrow' mgr)
-           >>> makeRequest
-           >>> sourceHttp_
-           >>> downloadHttp "/tmp/bg.jpg"
-           >>> tee
-           >>> restartDock
-               ) [source]
+-- wallpaper :: BackgroundSource -> IO ()
+-- wallpaper source = do
+--   mgr <- newManager tlsManagerSettings
+--   runRMachine_ (
+--                dispatch
+--            >>> machine (parseUrlThrow' mgr)
+--            >>> makeRequest
+--            >>> sourceHttp_
+--            >>> downloadHttp "/tmp/bg.jpg"
+--            >>> tee
+--            >>> restartDock
+--                ) [source]
 
-ifaceRequestHeaders = [ ("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36")
-                      , ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                      ]
+-- ifaceRequestHeaders = [ ("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36")
+--                       , ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+--                       ]
+
+wallpaperDispatch :: BackgroundSource -> IO ()
+wallpaperDispatch NatGeo = NatGeo.download "/tmp/bg.jpg"
+wallpaperDispatch Bing = Bing.getImageUrl
+wallpaperDispatch Iface = IfaceLift.getImageUrl
 
 wallpaperParser :: Parser (IO ())
-wallpaperParser = wallpaper <$> (
+wallpaperParser = wallpaperDispatch <$> (
   flag' Bing
     (  long "bing"
     <> short 'b'
@@ -114,7 +117,7 @@ wallpaperInfo = info (helper <*> wallpaperParser)
 parseCommands :: Parser (IO ())
 parseCommands = subparser
   ( command "backgrounds" wallpaperInfo
-  <> command "random-movie" movieInfo
+--  <> command "random-movie" movieInfo
   )
 
 commandsInfo :: ParserInfo (IO ())
