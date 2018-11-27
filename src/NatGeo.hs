@@ -16,6 +16,7 @@ import qualified Network.HTTP.Client as C
 import Network.HTTP.Client.TLS
 import Data.Aeson
 import Data.Aeson.Lens
+import System.Console.Spinners
 
 data Html
 
@@ -71,7 +72,7 @@ yourshotClient = do
 download :: FilePath -> IO ()
 download destFp = do
   env <- photoOfTheDayClientEnv
-  eResponse <- runClientM photoBaseJSON env
+  eResponse <- spinner "Requesting Photo of the Day page." $ runClientM photoBaseJSON env
   case eResponse of
     Left err -> print err
     Right response -> case response ^? to getLargestImage . traverse of
@@ -81,9 +82,8 @@ download destFp = do
         case imgUrl ^? getImageHashId of
           Nothing -> putStrLn "Could not get the Image Hash from the image url!"
           Just hash -> do
-            putStrLn "Downloading the image now!"
             yourshotEnv <- yourshotClient
-            resp <- runClientM (photoUrl hash) yourshotEnv
+            resp <- spinner "Downloading the image now!" $ runClientM (photoUrl hash) yourshotEnv
             case resp of
               Left err -> print err
               Right bs -> writeFile destFp bs

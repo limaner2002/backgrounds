@@ -18,6 +18,7 @@ library
   exposed-modules:     NatGeo
                      , Bing
                      , IfaceLift
+                     , System.Console.Spinners
   build-depends:       base
                      , classy-prelude
                      , network
