@@ -72,7 +72,7 @@ yourshotClient = do
 download :: FilePath -> IO ()
 download destFp = do
   env <- photoOfTheDayClientEnv
-  eResponse <- spinner "Requesting Photo of the Day page." $ runClientM photoBaseJSON env
+  eResponse <- withSpinner "Requesting Photo of the Day page." $ runClientM photoBaseJSON env
   case eResponse of
     Left err -> print err
     Right response -> case response ^? to getLargestImage . traverse of
@@ -83,7 +83,7 @@ download destFp = do
           Nothing -> putStrLn "Could not get the Image Hash from the image url!"
           Just hash -> do
             yourshotEnv <- yourshotClient
-            resp <- spinner "Downloading the image now!" $ runClientM (photoUrl hash) yourshotEnv
+            resp <- withSpinner "Downloading the image now!" $ runClientM (photoUrl hash) yourshotEnv
             case resp of
               Left err -> print err
               Right bs -> writeFile destFp bs

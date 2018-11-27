@@ -25,13 +25,8 @@ library
                      , streaming-commons
                      , http-client
                      , resourcet
-                     -- , http-conduit
                      , ansi-terminal
                      , http-client-tls
-                     -- , machinecell-contrib
-                     -- , machinecell
-                     -- , hxt
-                     -- , hxt-http
                      , lens
                      , taggy-lens
                      , taggy
@@ -49,17 +44,11 @@ executable random-utils
   build-depends:       base
                      , bing-wallpapers
                      , classy-prelude
-                     -- , hxt
-                     -- , hxt-http
-                     -- , http-conduit
                      , conduit
                      , conduit-combinators
                      , resourcet
                      , filepath
                      , process
-                     -- , machinecell
-                     -- , machinecell-contrib
-                     -- , random-movie
                      , optparse-applicative
   default-language:    Haskell2010
 
