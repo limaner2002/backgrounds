@@ -86,7 +86,8 @@ download destFp = do
             resp <- withSpinner "Downloading the image now!" $ runClientM (photoUrl hash) yourshotEnv
             case resp of
               Left err -> print err
-              Right bs -> writeFile destFp bs
+              Right bs ->
+                withSpinner ("Writing file to " <> tshow destFp) $ writeFile destFp bs
 
 itemsF :: Fold Value Value
 itemsF = key "items" . plate
