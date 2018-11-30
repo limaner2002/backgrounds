@@ -6,6 +6,7 @@ resolver: lts-11.20
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- progress-email
 # - location: ../machinecell-contrib
 # - location: ../machinecell
 # - random-movie

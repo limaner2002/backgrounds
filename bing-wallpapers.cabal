@@ -50,6 +50,7 @@ executable random-utils
                      , filepath
                      , process
                      , optparse-applicative
+                     , progress-email
   default-language:    Haskell2010
 
 test-suite bing-wallpapers-test

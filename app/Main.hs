@@ -21,6 +21,7 @@ import Options.Applicative hiding ((<>))
 import qualified Options.Applicative as OA
 import Options.Applicative.Types
 -- import HBORandomMovie
+import qualified ProgressEmail.Opts as ProgressEmail
 
 data BackgroundSource
   = Bing
@@ -116,7 +117,8 @@ wallpaperInfo = info (helper <*> wallpaperParser)
 
 parseCommands :: Parser (IO ())
 parseCommands = subparser
-  ( command "backgrounds" wallpaperInfo
+  (  command "backgrounds" wallpaperInfo
+  <> command "progress-email" ProgressEmail.parserInfo
 --  <> command "random-movie" movieInfo
   )
 
