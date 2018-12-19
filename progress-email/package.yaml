@@ -27,6 +27,8 @@ dependencies:
 - text
 - optparse-applicative
 - aeson
+- type-of-html
+- project-m36
 
 library:
   source-dirs: src

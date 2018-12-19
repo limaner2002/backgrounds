@@ -35,10 +35,26 @@ resolver: lts-11.20
 #  - wai
 packages:
 - .
+- location:
+    git: git@github.com:agentm/project-m36.git
+    commit: 4d8607f88e67ede345be98f108c837424e61372a
+  extra-dep: true
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-# extra-deps: []
+extra-deps:
+- data-interval-1.3.0
+- deferred-folds-0.9.7.1
+- distributed-process-async-0.2.6
+- distributed-process-client-server-0.2.5.1
+- distributed-process-extras-0.3.5
+- extended-reals-0.2.3.0
+- rset-1.0.0
+- stm-containers-1.1.0.2
+- focus-1.0.1.2
+- stm-hamt-1.2.0.2
+- primitive-extras-0.7.1
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
