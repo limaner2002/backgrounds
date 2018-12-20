@@ -13,6 +13,7 @@ import ProgressEmail
 import Data.Time
 import qualified Data.Text.Lazy as TL
 import ProgressEmail.Types
+import ProgressEmail.Tupleable
 
 -- header = head_ $ link_A (rel_ (Proxy :: Proxy "stylesheet") # href_ (Proxy :: Proxy "http://yui.yahooapis.com/pure/0.6.0/pure-min.css"))
 header = head_ $ (link_A (rel_ (Proxy :: Proxy "stylesheet") # href_ (Proxy :: Proxy "tables.css")))

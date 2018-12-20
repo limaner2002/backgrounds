@@ -29,6 +29,12 @@ dependencies:
 - aeson
 - type-of-html
 - project-m36
+- digestive-functors
+- digestive-functors-lucid
+- servant-server
+- servant-lucid
+- lucid
+- warp
 
 library:
   source-dirs: src

@@ -52,4 +52,3 @@ instance FromJSON Ticket
 
 newtype Email = Email TL.Text
   deriving Show
-
