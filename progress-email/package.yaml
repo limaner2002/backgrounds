@@ -35,6 +35,8 @@ dependencies:
 - servant-lucid
 - lucid
 - warp
+- recursion-schemes
+- binary
 
 library:
   source-dirs: src
