@@ -21,7 +21,10 @@ header = head_ $ (link_A (rel_ (Proxy :: Proxy "stylesheet") # href_ (Proxy :: P
 
 -- renderTickets = fmap renderTicket
 
-renderTicket (Ticket number description) = tr_ $ td_ ("EPC-" <> tshow number) # td_ description
+renderTicket ticket = tr_ $ td_ ("EPC-" <> tshow number) # td_ description
+  where
+    number = ticketNumber ticket
+    description = ticketDescription ticket
 
 renderMessage (Message body tickets) =
     p_ body
@@ -43,6 +46,11 @@ renderProgress progress =
     ])
   # renderExecutionSummary progress
   # message progress
+
+renderTicketTable = table_ . tbody_ . fmap renderTicket . asList
+  where
+    asList :: [Ticket a] -> [Ticket a]
+    asList = id
 
 table :: [[Text]] -> (:@:)
   'Table

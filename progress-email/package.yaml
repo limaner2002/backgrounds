@@ -31,12 +31,16 @@ dependencies:
 - project-m36
 - digestive-functors
 - digestive-functors-lucid
+- servant
 - servant-server
 - servant-lucid
 - lucid
 - warp
 - recursion-schemes
 - binary
+- http-api-data
+- mtl
+- bytestring
 
 library:
   source-dirs: src

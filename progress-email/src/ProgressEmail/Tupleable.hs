@@ -10,11 +10,12 @@ import ClassyPrelude
 
 import ProjectM36.Tuple
 import ProjectM36.Atom
-import ProjectM36.Relation
+import ProjectM36.Relation hiding (toList)
 import ProjectM36.Attribute as A
 import ProjectM36.Tupleable
 import ProjectM36.Base
 import ProjectM36.Atomable
+import ProjectM36.Key
 import Data.Proxy
 import qualified Data.Text.Lazy as TL
 
@@ -123,11 +124,17 @@ createSchema ctx conn = do
 insertTickets_ :: (Traversable t, Atomable a) => t (Ticket a) -> Either RelationalError DatabaseContextExpr
 insertTickets_ = flip toInsertExpr "ticket"
 
-runTransaction :: Db a -> IO (Either DbError a)
-runTransaction = fmap ClassyPrelude.join . withDatabase (CrashSafePersistence "/tmp/test.db") . flip withTransaction
+runTransaction :: FilePath -> Db a -> IO (Either DbError a)
+runTransaction dbPath = fmap ClassyPrelude.join . withDatabase (CrashSafePersistence dbPath) . flip withTransaction
 
-insertTickets :: (Traversable t, Atomable a) => t (Ticket a) -> IO (Either RelationalError (Either DbError ()))
-insertTickets = mapM runTransaction . fmap execute . insertTickets_
+insertTickets :: (Traversable t, Atomable a) => FilePath -> t (Ticket a) -> IO (Either RelationalError (Either DbError ()))
+insertTickets dbPath = mapM (runTransaction dbPath) . fmap execute . insertTickets_
+
+updateTicketExpr :: forall a. Atomable a => Ticket a -> Either RelationalError DatabaseContextExpr
+updateTicketExpr = toUpdateExpr "ticket" (toList $ A.attributeNames $ toAttributes (Proxy :: Proxy (Ticket a)))
+
+updateTicket :: Atomable a => FilePath -> Ticket a -> IO (Either RelationalError (Either DbError ()))
+updateTicket dbPath = sequence . fmap (runTransaction dbPath . execute) . updateTicketExpr
 
 retrieveTickets :: Db [Either RelationalError (Ticket [Int])]
 retrieveTickets = fmap fromTuple . relFold cons mempty <$> query (RelationVariable "ticket" ())
@@ -159,10 +166,11 @@ tickets = [ Ticket 23857 "PIA Wave: Error While Executing EPC_SP_ADD_FCDL_FINAN_
           , Ticket 23956 "Tech Debt: GROUP BY in views Causing Performance drops & Timeouts in production" [] Nothing (TicketStatus "Done")
           , Ticket 23702 "E2E UAT Bug - Exception 17 Did Not Auto Clear"  [] Nothing (TicketStatus "Done")
           , Ticket 23168 "Tech Debt: Refactor Nightly Exception 5 process to improve performance"  [] Nothing (TicketStatus "Done")
-          , Ticket 22486 "Tech Debt: SP - EPC_SP_PC_REV_VALIDATE_DISCOUNT is timing out in Prod"  [] Nothing (TicketStatus "Done")
+          , Ticket 22486 "Tech Debt: SP - EPC_SP_PC_REV_VALIDATE_DISCOUNT is timing out in Prod"  [] Nothing (TicketStatus "Failed")
           , Ticket 19966 "Tech Debt: Refactor Slow Performing Views"  [] Nothing (TicketStatus "Done")
           , Ticket 17887 "Technical Debt: Improve performance of EPC_FRN_CASE_ASSOCIATED_FRNS_VIEW"  [] Nothing (TicketStatus "Done")
           , Ticket 13724 "Tech Debt: Increase Performance of EPC_ESCALATION_REPORT_MGR_VIEW (and FY)"  [] Nothing (TicketStatus "Done")
+          , Ticket 24041 "Performance Test: GROUP BY in views Causing Performance Issues" [23956] Nothing (TicketStatus "Open")
           ]
 
 releaseByName :: Text -> RelationalExprBase a -> RelationalExprBase a
@@ -183,3 +191,9 @@ ticketStatusPred status = AttributeEqualityPredicate "ticketStatus" (NakedAtomEx
 getTicketRelations :: Ticket [Int] -> Db [Either RelationalError (Ticket [Int])]
 getTicketRelations = fmap ClassyPrelude.join . traverse (retrieveTicket . ticketTable . ticketByNumber) . ticketRelations
 
+schema :: [DatabaseContextExpr]
+schema =
+  toAddTypeExpr (Proxy :: Proxy TicketStatus)
+  :  ticketSchema (Proxy :: Proxy [Int])
+  <> [databaseContextExprForUniqueKey "ticket" ["ticketNumber"]]
+  <> releaseSchema (Proxy :: Proxy [Int])
