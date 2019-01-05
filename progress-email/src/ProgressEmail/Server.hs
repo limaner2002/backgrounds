@@ -109,3 +109,5 @@ checkErrors :: (MonadError ServantErr m, Show err) => Either err a -> m a
 checkErrors (Left err) = throwError $ err500 { errBody = fromStrict . encodeUtf8 . tshow $ err }
 checkErrors (Right a) = pure a
 
+startServer :: Port -> FilePath -> IO ()
+startServer port dbPath = run port (server dbPath)
