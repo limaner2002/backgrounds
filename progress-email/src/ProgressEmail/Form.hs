@@ -9,21 +9,33 @@ import ProgressEmail.Types
 import Text.Digestive.Lucid.Html5
 import Lucid
 import qualified Web.FormUrlEncoded as WF
+import Data.Time
 
 ticketForm :: Monad m => [Ticket [Int]] -> Form (Html ()) m (Ticket [Int])
 ticketForm tickets = Ticket
-  <$> "ticketNum" .: validate (numValidation tickets) (text Nothing)
+  <$> "ticketNum" .: validate (ticketNumValidation tickets) (text Nothing)
   <*> fmap fromStrict ("description" .: (validate checkDescription $ text Nothing))
   <*> "relations" .: choiceMultiple' ticketChoices Nothing
   <*> fmap (fmap fromStrict) ("assignedUser" .: optionalText Nothing)
   <*> fmap TicketStatus ("ticketStatus" .: (validate checkRequired $ text Nothing))
+  <*> "ticketScheduled" .: fmap (\x -> [x]) dateForm
+  <*> "ticketExecuted" .: fmap (\x -> [x]) dateForm
+  <*> "scriptedStatus" .: choice scriptedChoices Nothing
+  <*> fmap Release ("ticketRelease" .: text Nothing)
   where
     checkDescription = checkRequired >=> limitDescription
-    ticketNums = fmap ticketNumber tickets
+    ticketNums = fmap (_ticketNumberInt . _ticketNumber) tickets
     ticketChoice :: Int -> (Int, Html ())
     ticketChoice i = (i, toHtml $ tshow i)
     ticketChoices :: [(Int, Html ())]
     ticketChoices = fmap ticketChoice ticketNums
+    dateForm = validate (readText "Not a valid date!") $ text Nothing
+    scriptedChoices :: [(ScriptedStatus, Html ())]
+    scriptedChoices =
+      [ (NotStarted, "Not Started")
+      , (InProgress, "In Progress")
+      , (Done, "Done")
+      ]
 
 postTicketForm :: (Monad m, MonadIO m) => WF.Form -> Env m
 postTicketForm form paths = do
@@ -111,13 +123,14 @@ checkRequired txt
   | onull txt = Error $ toHtml ("A value is required" :: Text)
   | otherwise = Success txt
 
-numValidation :: [Ticket [Int]] -> Text -> Result (Html ()) Int
-numValidation tickets =
+ticketNumValidation :: [Ticket [Int]] -> Text -> Result (Html ()) TicketNumber
+ticketNumValidation tickets =
       checkRequired
   >=> readText "Please only enter a number"
+  >=> pure . TicketNumber
   >=> checkDuplicate tickets
 
-checkDuplicate :: [Ticket [Int]] -> Int -> Result (Html ()) Int
+checkDuplicate :: [Ticket [Int]] -> TicketNumber -> Result (Html ()) TicketNumber
 checkDuplicate tickets newNumber
-  | newNumber `elem` (fmap ticketNumber tickets) = Error "This ticket has already been entered. Please enter a new ticket number."
+  | newNumber `elem` (fmap _ticketNumber tickets) = Error "This ticket has already been entered. Please enter a new ticket number."
   | otherwise = Success newNumber

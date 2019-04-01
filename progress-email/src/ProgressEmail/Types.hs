@@ -18,6 +18,8 @@ import qualified Data.Text.Lazy as TL
 import Data.Functor.Foldable
 import Data.Functor.Foldable.TH
 import Data.Binary
+import qualified Data.Csv as Csv
+import Control.Lens
 
 newtype Percentage = Percentage Double
   deriving Show
@@ -51,18 +53,37 @@ instance (ToJSON body, ToJSON tickets) => ToJSON (Message body tickets)
 instance (FromJSON body, FromJSON tickets) => FromJSON (Message body tickets)
 
 data Ticket a = Ticket
-  { ticketNumber :: Int
-  , ticketDescription :: TL.Text
-  , ticketRelations :: a
-  , ticketAssignedUser :: Maybe TL.Text
-  , ticketStatus :: TicketStatus
+  { _ticketNumber :: TicketNumber
+  , _ticketDescription :: TL.Text
+  , _ticketRelations :: a
+  , _ticketAssignedUser :: Maybe TL.Text
+  , _ticketStatus :: TicketStatus
+  , _ticketScheduled :: [UTCTime]
+  , _ticketExecuted :: [UTCTime]
+  , _ticketScriptedStatus :: ScriptedStatus
+  , _ticketRelease :: Release
   } deriving (Show, Generic, Functor, Foldable, Traversable)
+
+data Deployment = Deployment
+  { _deployedEnvironment :: Environment
+  , _deployedDate :: UTCTime
+  } deriving (Show, Generic)
+
+newtype Environment = Environment
+  { _environmentName :: Text
+  } deriving (Show, Generic, Eq, NFData, Binary)
+
+instance ToJSON Deployment
+instance FromJSON Deployment
+
+instance ToJSON Environment
+instance FromJSON Environment
 
 instance ToJSON a => ToJSON (Ticket a)
 instance FromJSON a => FromJSON (Ticket a)
 
-newtype TicketStatus = TicketStatus { unTicketStatus :: Text }
-  deriving (Show, Generic, Eq, Ord, NFData, Binary)
+newtype TicketStatus = TicketStatus { _ticketStatusTxt :: Text }
+  deriving (Show, Generic, Eq, Ord, NFData, Binary, Csv.FromField)
 
 instance ToJSON TicketStatus
 instance FromJSON TicketStatus
@@ -70,17 +91,52 @@ instance FromJSON TicketStatus
 newtype Email = Email TL.Text
   deriving Show
 
-data Release a = Release
-  { releaseName :: Text
-  , releaseData :: a
-  } deriving (Show, Generic, Functor, Foldable, Traversable)
+newtype Release = Release
+  { _releaseTxt :: Text
+  } deriving (Show, Generic, Eq, Ord, IsString)
 
-instance ToJSON a => ToJSON (Release a)
-instance FromJSON a => FromJSON (Release a)
+instance ToJSON Release
+instance FromJSON Release
 
--- deriving instance Generic (TicketF a)
--- deriving instance Show a => Show (TicketF a)
+newtype TicketNumber = TicketNumber
+  { _ticketNumberInt :: Int
+  } deriving (Show, Generic, Eq, Ord, Num)
 
-type TicketF = Fix Ticket
-type ReleaseF = Fix Release
-type ProgressF = Fix Progress
+newtype JiraReleaseFilter = JiraReleaseFilter
+  { _jiraFilterTicket :: Release -> Ticket [Int]
+  }
+
+instance Csv.FromNamedRecord JiraReleaseFilter where
+  parseNamedRecord r = JiraReleaseFilter <$>
+    (     Ticket
+      <$> r Csv..: "Key"
+      <*> r Csv..: "Summary"
+      <*> pure mempty
+      <*> pure Nothing
+      <*> r Csv..: "Status"
+      <*> pure mempty
+      <*> pure mempty
+      <*> pure NotStarted
+    )
+
+instance Csv.FromField TicketNumber where
+  parseField bs = case stripPrefix "EPC-" bs of
+    Nothing -> fail "Could not parse the ticket number!"
+    Just stripped -> TicketNumber <$> Csv.parseField stripped
+
+instance ToJSON TicketNumber
+instance FromJSON TicketNumber
+
+data ScriptedStatus
+  = NotStarted
+  | InProgress
+  | Done
+  deriving (Show, Eq, Ord, Generic)
+
+instance ToJSON ScriptedStatus
+instance FromJSON ScriptedStatus
+
+makeLenses ''Ticket
+makeLenses ''TicketNumber
+makeLenses ''TicketStatus
+makePrisms ''ScriptedStatus

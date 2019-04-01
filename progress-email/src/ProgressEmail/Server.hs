@@ -9,7 +9,7 @@
 module ProgressEmail.Server where
 
 import ClassyPrelude hiding (Handler)
-import Servant
+import Servant hiding (header)
 import Servant.Utils.Links
 import ProgressEmail.Types
 import ProgressEmail.Form hiding (checkErrors)
@@ -24,12 +24,13 @@ import ProjectM36.Client.Simple (DbError, RelationalError)
 import Control.Monad.Error.Class
 import qualified Html as H
 import qualified Data.ByteString.Lazy as BL
-import ProgressEmail.Html (renderTicket, renderTicketTable)
+import ProgressEmail.Html (renderTicketTable, header)
+import ProgressEmail.Forma
 
 data TYHTML
 
 instance MimeRender TYHTML [Ticket a] where
-  mimeRender _ = H.renderByteString . renderTicketTable
+  mimeRender _ = H.renderByteString . (ProgressEmail.Html.header H.#) . H.body_ . renderTicketTable
 
 instance Accept TYHTML where
   contentType _ = contentType (Proxy :: Proxy HTML)
@@ -60,10 +61,6 @@ ticketFormHandler path form = do
         >=> checkErrors
         >=> checkErrors
         $   [ticket]
-      -- writeFile path $ toStrict $ encode $ ticket : tickets
-      -- res <- liftIO $ updateTicket path ticket
-      -- res <- liftIO $ insertTickets path ticket
-      -- checkErrors >=> checkErrors $ res
   pure $ page $ do
     ticketHtml v
     p_ $ toHtml $ tshow mTicket
@@ -78,6 +75,7 @@ getTickets :: FilePath -> Handler [Ticket [Int]]
 getTickets dbPath = queryTickets dbPath >>= checkQueryResult
 
 serveStyleSheet :: Handler ByteString
+-- serveStyleSheet = readFile "/Users/josh/Desktop/iCloud/Documents/formatting/table.css"
 serveStyleSheet = readFile "progress-email/src/ProgressEmail/format.css"
 
 server :: FilePath -> Application

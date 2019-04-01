@@ -41,6 +41,7 @@ dependencies:
 - http-api-data
 - mtl
 - bytestring
+- forma
 
 library:
   source-dirs: src

@@ -18,6 +18,7 @@ import ProjectM36.Atomable
 import ProjectM36.Key
 import Data.Proxy
 import qualified Data.Text.Lazy as TL
+import Data.Binary
 
 import ProjectM36.Client.Simple
 import ProjectM36.Client (EvaluatedNotification)
@@ -67,8 +68,18 @@ instance Atomable TL.Text where
 instance Atomable a => Tupleable (Ticket a)
 instance Atomable TicketStatus
 
+instance Atomable TicketNumber
+instance NFData TicketNumber
+instance Binary TicketNumber
+
 ticketSchema :: forall a. Atomable a => Proxy a -> [DatabaseContextExpr]
-ticketSchema _ = [ toDefineExpr (Proxy :: Proxy (Ticket a)) "ticket" ]
+ticketSchema _ = [ toAddTypeExpr (Proxy :: Proxy TicketStatus)
+                 , toAddTypeExpr (Proxy :: Proxy TicketNumber)
+                 , toAddTypeExpr (Proxy :: Proxy Release)
+                 , toAddTypeExpr (Proxy :: Proxy ScriptedStatus)
+                 , toDefineExpr (Proxy :: Proxy (Ticket a)) "ticket"
+                 , databaseContextExprForUniqueKey "ticket" ["_ticketNumber"]
+                 ]
 
 instance Tupleable a => Tupleable (MarkDown a) where
   toTuple md =
@@ -94,10 +105,16 @@ instance Tupleable a => Tupleable (MarkDown a) where
                                         , Attribute "title" $ toAtomType (Proxy :: Proxy TL.Text)
                                         ]
 
-instance Atomable a => Tupleable (Release a)
+instance Atomable Release
+instance NFData Release
+instance Binary Release
 
-releaseSchema :: forall a. Atomable a => Proxy a -> [DatabaseContextExpr]
-releaseSchema _ = [ toDefineExpr (Proxy :: Proxy (Release a)) "release" ]
+instance Atomable Environment
+instance Tupleable Deployment
+
+instance Atomable ScriptedStatus
+instance NFData ScriptedStatus
+instance Binary ScriptedStatus
 
 -- Utility
 
@@ -142,9 +159,6 @@ retrieveTickets = fmap fromTuple . relFold cons mempty <$> query (RelationVariab
 retrieveTupleable :: Tupleable a => RelationalExpr -> Db [Either RelationalError a]
 retrieveTupleable expr = fmap fromTuple . relFold cons mempty <$> query expr
 
-retrieveRelease :: RelationalExpr -> Db [Either RelationalError (Release [Int])]
-retrieveRelease = retrieveTupleable
-
 retrieveTicket :: RelationalExpr -> Db [Either RelationalError (Ticket [Int])]
 retrieveTicket = retrieveTupleable
 
@@ -155,23 +169,6 @@ ticketTable :: (RelationalExprBase () -> RelationalExprBase ()) -> RelationalExp
 ticketTable expr = expr $ RelationVariable "ticket" ()
 
 -- Should be moved out of here!
-
-tickets :: [Ticket [Int]]
-tickets = [ Ticket 23857 "PIA Wave: Error While Executing EPC_SP_ADD_FCDL_FINAN_TRNS_TBL_FY Stored Procedure" [] Nothing (TicketStatus "Done")
-          , Ticket 23832 "Blank Cells in the Amount to be Committed (post-discount) column in General Manager Review." [] Nothing (TicketStatus "Done")
-          , Ticket 23620 "Transaction Timeouts and High Transaction Times in Window Tests" [] Nothing (TicketStatus "Done")
-          , Ticket 23949 "COMAD Wave Taking Longer than Usual" [] Nothing (TicketStatus "Done")
-          , Ticket 24017 "InvalidUserException Encountered in PC Review" [] Nothing (TicketStatus "Done")
-          , Ticket 24014 "Query batching issue with EPC_getFrnReviewNotes() for SPIN Changes" [] Nothing (TicketStatus "Done")
-          , Ticket 23956 "Tech Debt: GROUP BY in views Causing Performance drops & Timeouts in production" [] Nothing (TicketStatus "Done")
-          , Ticket 23702 "E2E UAT Bug - Exception 17 Did Not Auto Clear"  [] Nothing (TicketStatus "Done")
-          , Ticket 23168 "Tech Debt: Refactor Nightly Exception 5 process to improve performance"  [] Nothing (TicketStatus "Done")
-          , Ticket 22486 "Tech Debt: SP - EPC_SP_PC_REV_VALIDATE_DISCOUNT is timing out in Prod"  [] Nothing (TicketStatus "Failed")
-          , Ticket 19966 "Tech Debt: Refactor Slow Performing Views"  [] Nothing (TicketStatus "Done")
-          , Ticket 17887 "Technical Debt: Improve performance of EPC_FRN_CASE_ASSOCIATED_FRNS_VIEW"  [] Nothing (TicketStatus "Done")
-          , Ticket 13724 "Tech Debt: Increase Performance of EPC_ESCALATION_REPORT_MGR_VIEW (and FY)"  [] Nothing (TicketStatus "Done")
-          , Ticket 24041 "Performance Test: GROUP BY in views Causing Performance Issues" [23956] Nothing (TicketStatus "Open")
-          ]
 
 releaseByName :: Text -> RelationalExprBase a -> RelationalExprBase a
 releaseByName name = Restrict $ AttributeEqualityPredicate "releaseName" (NakedAtomExpr $ toAtom name)
@@ -189,11 +186,15 @@ ticketStatusPred :: TicketStatus -> RestrictionPredicateExprBase a
 ticketStatusPred status = AttributeEqualityPredicate "ticketStatus" (NakedAtomExpr $ toAtom status)
 
 getTicketRelations :: Ticket [Int] -> Db [Either RelationalError (Ticket [Int])]
-getTicketRelations = fmap ClassyPrelude.join . traverse (retrieveTicket . ticketTable . ticketByNumber) . ticketRelations
+getTicketRelations = fmap ClassyPrelude.join . traverse (retrieveTicket . ticketTable . ticketByNumber) . _ticketRelations
+
+ticketsByRelease :: Release -> RelationalExprBase a -> RelationalExprBase a
+ticketsByRelease release = Restrict $ AttributeEqualityPredicate "_ticketRelease" (NakedAtomExpr $ toAtom release)
+
+getTicketsByRelease :: Release -> Db [Either RelationalError (Ticket [Int])]
+getTicketsByRelease release = retrieveTupleable $ ticketsByRelease release $ RelationVariable "ticket" ()
 
 schema :: [DatabaseContextExpr]
 schema =
-  toAddTypeExpr (Proxy :: Proxy TicketStatus)
-  :  ticketSchema (Proxy :: Proxy [Int])
+  ticketSchema (Proxy :: Proxy [Int])
   <> [databaseContextExprForUniqueKey "ticket" ["ticketNumber"]]
-  <> releaseSchema (Proxy :: Proxy [Int])
